@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Algorithme de Dinic — Flot Maximum</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Satoshi:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root{--bg:#050810;--card:#0a0f1a;--card2:#0f1525;--surface:#131a2c;--border:#1a2340;--border-l:#243058;--text:#e0e4ef;--dim:#7a82a0;--faint:#454d68;--accent:#22d3ee;--accent2:#06b6d4;--accent-g:rgba(34,211,238,0.08);--flow:#3b82f6;--flow-g:rgba(59,130,246,0.1);--emerald:#34d399;--rose:#fb7185;--amber:#fbbf24;--cream:#f0f2fa;--glow:rgba(34,211,238,0.15);--transition:cubic-bezier(0.16,1,0.3,1);}
+        *{margin:0;padding:0;box-sizing:border-box;}
+        html{scroll-behavior:smooth;}
+        body{background:var(--bg);color:var(--text);font-family:'Satoshi',sans-serif;line-height:1.7;overflow-x:hidden;cursor:none;}
+        /* LOADER */
+        #loader{position:fixed;inset:0;z-index:100000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.6s,visibility 0.6s;}
+        #loader.done{opacity:0;visibility:hidden;pointer-events:none;}
+        .loader-title{font-family:'DM Serif Display',serif;font-size:1.8rem;color:var(--cream);margin-bottom:0.5rem;}
+        .loader-title em{color:var(--accent);font-style:italic;}
+        .loader-sub{font-size:0.72rem;color:var(--faint);font-family:'JetBrains Mono',monospace;margin-bottom:2rem;}
+        .loader-flow{width:200px;height:3px;background:var(--border);border-radius:3px;overflow:hidden;position:relative;}
+        .loader-flow-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--flow));width:0;border-radius:3px;animation:loaderGo 2s ease-out forwards;}
+        @keyframes loaderGo{to{width:100%;}}
+        .loader-pct{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--faint);margin-top:0.8rem;}
+        /* CURSOR */
+        .cur-dot{position:fixed;width:8px;height:8px;background:var(--accent);border-radius:50%;pointer-events:none;z-index:99999;mix-blend-mode:screen;transition:transform 0.08s;}
+        .cur-dot.click{transform:scale(1.8);}
+        .cur-ring{position:fixed;width:36px;height:36px;border:1.5px solid rgba(34,211,238,0.3);border-radius:50%;pointer-events:none;z-index:99998;transition:width 0.3s,height 0.3s,border-color 0.3s;}
+        .cur-ring.hover{width:52px;height:52px;border-color:var(--accent);}
+        /* SCROLL BAR */
+        .scroll-bar{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--flow),var(--emerald));z-index:10001;width:0%;}
+        /* SIDE NAV */
+        .side-nav{position:fixed;right:1.5rem;top:50%;transform:translateY(-50%);z-index:999;display:flex;flex-direction:column;gap:0.9rem;}
+        .side-dot{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--faint);background:transparent;cursor:none;transition:all 0.3s;position:relative;}
+        .side-dot.active{border-color:var(--accent);background:var(--accent);box-shadow:0 0 12px var(--glow);}
+        .side-dot::after{content:attr(data-label);position:absolute;right:20px;top:50%;transform:translateY(-50%);font-size:0.6rem;color:var(--faint);white-space:nowrap;opacity:0;transition:opacity 0.3s;pointer-events:none;font-family:'JetBrains Mono',monospace;}
+        .side-dot:hover::after{opacity:1;}
+        /* BACK TOP */
+        .back-top{position:fixed;bottom:2rem;right:2rem;width:42px;height:42px;border-radius:50%;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;z-index:999;opacity:0;transform:translateY(20px);transition:all 0.3s;cursor:none;font-size:1rem;}
+        .back-top.vis{opacity:1;transform:translateY(0);}
+        .back-top:hover{border-color:var(--accent);box-shadow:0 0 20px var(--accent-g);}
+        /* TOAST */
+        .toast{position:fixed;bottom:3rem;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:0.6rem 1.2rem;font-size:0.78rem;color:var(--cream);z-index:100001;opacity:0;transition:all 0.4s var(--transition);pointer-events:none;display:flex;align-items:center;gap:0.5rem;backdrop-filter:blur(10px);}
+        .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+        /* GRAIN */
+        body::after{content:'';position:fixed;inset:0;opacity:0.018;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");pointer-events:none;z-index:10000;}
+        ::selection{background:var(--accent);color:var(--bg);}
+        a,button{cursor:none;}
+        /* NAV */
+        nav{position:fixed;top:0;width:100%;z-index:1000;padding:0 3rem;height:56px;display:flex;align-items:center;backdrop-filter:blur(20px) saturate(1.3);background:rgba(5,8,16,0.75);border-bottom:1px solid rgba(26,35,64,0.5);transition:all 0.3s;}
+        nav.scrolled{background:rgba(5,8,16,0.92);box-shadow:0 4px 30px rgba(0,0,0,0.4);}
+        .nav-in{max-width:1200px;width:100%;margin:0 auto;display:flex;justify-content:space-between;align-items:center;}
+        .nav-logo{font-family:'JetBrains Mono',monospace;font-size:0.82rem;font-weight:600;color:var(--accent);}
+        .nav-logo span{color:var(--faint);font-weight:400;}
+        .nav-links{list-style:none;display:flex;gap:2rem;}
+        .nav-links a{color:var(--dim);text-decoration:none;font-size:0.78rem;font-weight:500;transition:color 0.25s;position:relative;padding:0.2rem 0;}
+        .nav-links a::after{content:'';position:absolute;bottom:-2px;left:50%;right:50%;height:1.5px;background:var(--accent);transition:left 0.3s,right 0.3s;}
+        .nav-links a:hover,.nav-links a.active{color:var(--cream);}
+        .nav-links a:hover::after,.nav-links a.active::after{left:0;right:0;}
+        /* PARTICLES */
+        #particles{position:fixed;inset:0;z-index:0;pointer-events:none;}
+        /* HERO */
+        .hero{min-height:100vh;display:grid;grid-template-columns:1fr 1fr;align-items:center;max-width:1200px;margin:0 auto;padding:7rem 3rem 4rem;gap:3rem;position:relative;}
+        .hero-left{position:relative;z-index:2;}
+        .hero-tag{display:inline-flex;align-items:center;gap:0.5rem;font-family:'JetBrains Mono',monospace;font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--faint);margin-bottom:2rem;opacity:0;animation:fadeUp 0.8s 0.3s forwards;}
+        .hero-tag .pulse{width:7px;height:7px;background:var(--emerald);border-radius:50%;animation:pulseDot 2s infinite;}
+        @keyframes pulseDot{0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,0.5)}50%{box-shadow:0 0 0 8px rgba(52,211,153,0)}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+        .hero h1{font-family:'DM Serif Display',serif;font-size:clamp(2.6rem,4.8vw,4rem);font-weight:400;line-height:1.12;letter-spacing:-0.01em;margin-bottom:1.5rem;}
+        .hero h1 .char{display:inline-block;opacity:0;transform:translateY(100%);animation:charIn 0.6s forwards;}
+        @keyframes charIn{to{opacity:1;transform:translateY(0);}}
+        .hero h1 em{font-style:italic;color:var(--accent);}
+        .hero h1 em .char{color:var(--accent);}
+        .hero-desc{font-size:0.95rem;color:var(--dim);max-width:460px;font-weight:300;margin-bottom:2.5rem;opacity:0;animation:fadeUp 0.8s 1.4s forwards;}
+        .hero-actions{display:flex;gap:0.8rem;opacity:0;animation:fadeUp 0.8s 1.7s forwards;}
+        .mag-btn{position:relative;display:inline-flex;align-items:center;gap:0.5rem;padding:0.75rem 1.8rem;border-radius:50px;font-size:0.82rem;font-weight:600;text-decoration:none;font-family:'Satoshi',sans-serif;border:none;transition:transform 0.15s,box-shadow 0.3s;overflow:hidden;}
+        .mag-btn.primary{color:var(--bg);background:var(--accent);}
+        .mag-btn.primary:hover{box-shadow:0 0 50px rgba(34,211,238,0.3);}
+        .mag-btn.ghost{color:var(--dim);border:1px solid var(--border);background:transparent;}
+        .mag-btn.ghost:hover{color:var(--cream);border-color:var(--accent);}
+        .mag-btn span{position:relative;z-index:1;}
+        /* HERO RIGHT - FLOW SIMULATOR */
+        .hero-right{position:relative;z-index:2;}
+        .flow-sim{width:100%;height:460px;background:var(--card);border:1px solid var(--border);border-radius:14px;position:relative;overflow:hidden;}
+        #flowCanvas{width:100%;height:100%;}
+        .flow-controls{position:absolute;bottom:1rem;left:1rem;right:1rem;display:flex;justify-content:space-between;align-items:center;}
+        .flow-info{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--faint);background:rgba(5,8,16,0.85);padding:0.5rem 0.8rem;border-radius:6px;backdrop-filter:blur(10px);}
+        .flow-info strong{color:var(--accent);}
+        .flow-info .em{color:var(--emerald);}
+        .flow-btns{display:flex;gap:0.3rem;}
+        .flow-btn{background:rgba(5,8,16,0.85);border:1px solid var(--border);border-radius:6px;padding:0.4rem 0.8rem;font-size:0.65rem;color:var(--dim);font-family:'JetBrains Mono',monospace;cursor:none;transition:all 0.25s;backdrop-filter:blur(10px);}
+        .flow-btn:hover{border-color:var(--accent);color:var(--accent);}
+        .flow-btn.active{background:var(--accent);color:var(--bg);border-color:var(--accent);}
+        /* HERO STATS */
+        .hero-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;margin-top:2rem;border-radius:10px;overflow:hidden;opacity:0;animation:fadeUp 0.8s 2s forwards;}
+        .stat-cell{background:var(--card);padding:1.2rem;text-align:center;transition:background 0.3s;}
+        .stat-cell:hover{background:var(--card2);}
+        .stat-val{font-family:'JetBrains Mono',monospace;font-size:1.3rem;font-weight:700;color:var(--cream);}
+        .stat-lbl{font-size:0.58rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--faint);margin-top:0.15rem;}
+        /* SECTIONS */
+        section{max-width:1200px;margin:0 auto;padding:7rem 3rem;position:relative;}
+        .divider{max-width:1200px;margin:0 auto;height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);position:relative;overflow:hidden;}
+        .divider::after{content:'';position:absolute;top:0;left:-100%;width:50%;height:100%;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:divGlow 5s infinite;}
+        @keyframes divGlow{0%{left:-50%;}100%{left:150%;}}
+        .s-num{font-family:'JetBrains Mono',monospace;font-size:0.6rem;text-transform:uppercase;letter-spacing:0.14em;color:var(--accent);margin-bottom:1rem;display:flex;align-items:center;gap:0.6rem;}
+        .s-num::after{content:'';flex:1;max-width:50px;height:1px;background:var(--border-l);}
+        .s-title{font-family:'DM Serif Display',serif;font-size:clamp(1.8rem,3.2vw,2.6rem);font-weight:400;letter-spacing:-0.01em;margin-bottom:0.6rem;line-height:1.2;}
+        .s-title em{font-style:italic;color:var(--accent);}
+        .s-desc{color:var(--dim);font-size:0.9rem;max-width:540px;font-weight:300;margin-bottom:3rem;}
+        /* REVEAL */
+        .rv{opacity:0;transform:translateY(32px);transition:opacity 0.8s var(--transition),transform 0.8s var(--transition);}
+        .rv.vis{opacity:1;transform:none;}
+        .rv.d1{transition-delay:0.1s;}.rv.d2{transition-delay:0.2s;}.rv.d3{transition-delay:0.3s;}.rv.d4{transition-delay:0.4s;}
+        /* TILT CARDS */
+        .card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;}
+        .card-grid.c4{grid-template-columns:repeat(4,1fr);}
+        .t-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:2rem 1.5rem;transition:transform 0.15s,box-shadow 0.3s,border-color 0.3s;position:relative;overflow:hidden;}
+        .t-card:hover{border-color:rgba(34,211,238,0.2);box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+        .t-card:hover::after{opacity:1;}
+        .t-card::after{content:'';position:absolute;inset:-1px;border-radius:14px;padding:1px;background:linear-gradient(135deg,transparent,transparent,var(--accent),transparent,transparent);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity 0.5s;}
+        .tc-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;margin-bottom:1.2rem;transition:transform 0.3s;}
+        .t-card:hover .tc-icon{transform:scale(1.15) rotate(-5deg);}
+        .t-card h3{font-size:0.9rem;font-weight:700;margin-bottom:0.4rem;}
+        .t-card p{font-size:0.78rem;color:var(--dim);font-weight:300;line-height:1.7;}
+        /* ALGORITHM STEPS */
+        .algo-timeline{position:relative;padding-left:3rem;margin:2rem 0;}
+        .algo-timeline::before{content:'';position:absolute;left:14px;top:0;bottom:0;width:2px;background:var(--border);}
+        .algo-step{position:relative;margin-bottom:2rem;padding:1.5rem;background:var(--card);border:1px solid var(--border);border-radius:12px;transition:all 0.3s;}
+        .algo-step:hover{border-color:rgba(34,211,238,0.2);background:var(--card2);}
+        .algo-step::before{content:attr(data-step);position:absolute;left:-3rem;top:1.5rem;width:28px;height:28px;border-radius:50%;background:var(--card);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:0.65rem;font-weight:600;color:var(--accent);transition:all 0.3s;z-index:1;}
+        .algo-step:hover::before{border-color:var(--accent);box-shadow:0 0 15px var(--glow);}
+        .algo-step h4{font-size:0.88rem;font-weight:700;margin-bottom:0.4rem;}
+        .algo-step p{font-size:0.78rem;color:var(--dim);font-weight:300;line-height:1.7;}
+        .algo-step .step-badge{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:0.62rem;padding:0.15rem 0.5rem;border-radius:4px;margin-top:0.5rem;}
+        .badge-path{background:rgba(34,211,238,0.1);color:var(--accent);}
+        .badge-flow{background:rgba(52,211,153,0.1);color:var(--emerald);}
+        .badge-stop{background:rgba(251,113,133,0.1);color:var(--rose);}
+        /* INTERACTIVE GRAPH */
+        .graph-box{width:100%;height:420px;background:var(--card);border:1px solid var(--border);border-radius:14px;position:relative;overflow:hidden;margin:2rem 0;}
+        .graph-box canvas{width:100%;height:100%;}
+        .graph-legend{position:absolute;bottom:1rem;left:1rem;font-size:0.65rem;color:var(--faint);font-family:'JetBrains Mono',monospace;background:rgba(5,8,16,0.85);padding:0.5rem 0.8rem;border-radius:6px;backdrop-filter:blur(10px);line-height:1.6;}
+        .graph-legend strong{color:var(--accent);}
+        .graph-legend .em{color:var(--emerald);}
+        /* COMPARISON TABLE */
+        .cmp-table{width:100%;border-collapse:collapse;font-size:0.78rem;margin:1.5rem 0;}
+        .cmp-table thead th{padding:0.7rem 1rem;text-align:left;font-weight:600;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--faint);border-bottom:2px solid var(--border);background:var(--card);}
+        .cmp-table thead th:first-child{border-radius:8px 0 0 0;}
+        .cmp-table thead th:last-child{border-radius:0 8px 0 0;}
+        .cmp-table tbody tr{transition:all 0.2s;}
+        .cmp-table tbody tr:hover{background:rgba(34,211,238,0.03);}
+        .cmp-table td{padding:0.65rem 1rem;border-bottom:1px solid rgba(26,35,64,0.5);}
+        .cmp-table .winner{color:var(--emerald);font-weight:600;}
+        .cmp-table .meh{color:var(--amber);}
+        .cmp-table .bad{color:var(--rose);}
+        .cmp-table .struct-name{font-weight:600;}
+        /* RESULTS */
+        .r-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;}
+        .r-panel{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+        .r-panel.span{grid-column:1/-1;}
+        .r-head{padding:1rem 1.4rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+        .r-head h3{font-size:0.82rem;font-weight:600;}
+        .r-badge{font-family:'JetBrains Mono',monospace;font-size:0.6rem;padding:0.2rem 0.6rem;border-radius:4px;background:var(--accent-g);color:var(--accent);}
+        .rt{width:100%;border-collapse:collapse;font-size:0.78rem;}
+        .rt thead th{padding:0.55rem 1.2rem;text-align:left;font-weight:500;color:var(--faint);font-size:0.62rem;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid var(--border);}
+        .rt tbody tr{transition:all 0.2s;position:relative;}
+        .rt tbody tr::before{content:'';position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent);transition:width 0.3s;opacity:0.8;}
+        .rt tbody tr:hover::before{width:3px;}
+        .rt tbody tr:hover{background:rgba(34,211,238,0.03);}
+        .rt td{padding:0.5rem 1.2rem;border-bottom:1px solid rgba(26,35,64,0.4);position:relative;}
+        .rt .test-name{font-weight:600;}
+        .rt .val{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--accent);}
+        .rt .time{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--emerald);}
+        /* PERF CHART */
+        .perf-row{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;background:var(--border);border-radius:12px;overflow:hidden;margin:2rem 0;}
+        .perf-cell{background:var(--card);padding:1.5rem 1rem;text-align:center;transition:background 0.3s;}
+        .perf-cell:hover{background:var(--card2);}
+        .p-name{font-size:0.68rem;font-weight:600;margin-bottom:0.3rem;color:var(--dim);}
+        .p-val{font-family:'JetBrains Mono',monospace;font-size:1.4rem;font-weight:700;color:var(--accent);transition:transform 0.3s;}
+        .perf-cell:hover .p-val{transform:scale(1.08);}
+        .p-sub{font-size:0.6rem;color:var(--faint);margin-top:0.15rem;font-family:'JetBrains Mono',monospace;}
+        /* CALLOUT */
+        .callout{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;padding:1.5rem 1.6rem;margin:1.5rem 0;transition:all 0.3s;position:relative;overflow:hidden;}
+        .callout::before{content:'';position:absolute;top:0;left:0;bottom:0;width:0;background:linear-gradient(90deg,rgba(34,211,238,0.04),transparent);transition:width 0.5s;}
+        .callout:hover::before{width:100%;}
+        .callout:hover{border-left-color:var(--emerald);background:var(--card2);}
+        .callout-t{font-size:0.85rem;font-weight:700;margin-bottom:0.3rem;position:relative;}
+        .callout p{font-size:0.82rem;color:var(--dim);font-weight:300;line-height:1.8;position:relative;}
+        .callout strong{color:var(--cream);font-weight:600;}
+        /* PIPELINE */
+        .pipe-track{display:flex;align-items:stretch;margin:3rem 0 2rem;position:relative;}
+        .pipe-track::before{content:'';position:absolute;top:28px;left:40px;right:40px;height:2px;background:repeating-linear-gradient(90deg,var(--border) 0,var(--border) 8px,transparent 8px,transparent 16px);}
+        .pipe-step{flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;z-index:1;}
+        .pipe-dot{width:56px;height:56px;border-radius:50%;background:var(--card);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.1rem;margin-bottom:0.8rem;transition:all 0.4s var(--transition);}
+        .pipe-step:hover .pipe-dot{border-color:var(--accent);transform:scale(1.12);box-shadow:0 0 30px var(--accent-g);}
+        .pipe-lbl{font-size:0.75rem;font-weight:600;}
+        .pipe-sub{font-size:0.6rem;color:var(--faint);font-family:'JetBrains Mono',monospace;}
+        /* TABS */
+        .tab-row{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:2rem;}
+        .tab-btn{padding:0.7rem 1.4rem;font-size:0.78rem;font-weight:500;cursor:none;border:none;background:transparent;color:var(--faint);font-family:'Satoshi',sans-serif;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.25s,border-color 0.25s;}
+        .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+        .tab-btn:hover:not(.active){color:var(--dim);}
+        .tab-panel{display:none;}.tab-panel.active{display:block;animation:tabFade 0.4s ease;}
+        @keyframes tabFade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+        /* CODE */
+        .code-wrap{background:#040710;border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+        .code-top{padding:0.7rem 1.2rem;background:rgba(10,15,26,0.9);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+        .code-fn{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--faint);display:flex;align-items:center;gap:0.5rem;}
+        .code-dt{width:8px;height:8px;border-radius:50%;}
+        .code-actions{display:flex;gap:0.4rem;}
+        .copy-btn{background:transparent;border:1px solid var(--border);color:var(--faint);padding:0.25rem 0.7rem;border-radius:4px;font-size:0.62rem;font-family:'JetBrains Mono',monospace;transition:all 0.25s;cursor:none;}
+        .copy-btn:hover{border-color:var(--accent);color:var(--accent);}
+        .code-scroll{padding:1.2rem 1.4rem;overflow:auto;max-height:500px;}
+        .code-scroll::-webkit-scrollbar{width:5px;height:5px;}
+        .code-scroll::-webkit-scrollbar-track{background:transparent;}
+        .code-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+        .code-scroll pre{font-family:'JetBrains Mono',monospace;font-size:0.72rem;line-height:1.85;color:#a0a8c0;}
+        .kw{color:#c792ea;}.fn{color:#82aaff;}.str{color:#c3e88d;}.cm{color:#3a3f55;font-style:italic;}.num{color:#f0a050;}.op{color:#89ddff;}.tp{color:#ffcb6b;}.pp{color:#82aaff;}
+        /* CONCLUSION */
+        .conc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:2px;background:var(--border);border-radius:12px;overflow:hidden;}
+        .conc-card{background:var(--card);padding:2rem;transition:background 0.3s;position:relative;overflow:hidden;}
+        .conc-card:hover{background:var(--card2);}
+        .conc-card .cc-icon{font-size:1.2rem;margin-bottom:1rem;display:inline-block;transition:transform 0.3s;}
+        .conc-card:hover .cc-icon{transform:scale(1.2) rotate(-10deg);}
+        .conc-card h3{font-size:0.9rem;font-weight:700;margin-bottom:0.3rem;position:relative;}
+        .conc-card p{font-size:0.78rem;color:var(--dim);font-weight:300;line-height:1.7;position:relative;}
+        /* AUTHORS */
+        .authors-bar{display:flex;align-items:center;justify-content:space-between;margin-top:3rem;padding:2rem;background:var(--card);border:1px solid var(--border);border-radius:12px;transition:border-color 0.3s;}
+        .authors-bar:hover{border-color:rgba(34,211,238,0.2);}
+        .authors-left{display:flex;gap:2.5rem;}
+        .a-person{display:flex;align-items:center;gap:0.9rem;}
+        .a-av{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.82rem;color:var(--bg);transition:transform 0.3s;}
+        .a-person:hover .a-av{transform:scale(1.1) rotate(5deg);}
+        .a-person:nth-child(1) .a-av{background:var(--accent);}
+        .a-person:nth-child(2) .a-av{background:var(--emerald);}
+        .a-name{font-weight:600;font-size:0.88rem;}
+        .a-role{font-size:0.65rem;color:var(--faint);}
+        .authors-right{text-align:right;font-size:0.78rem;color:var(--dim);}
+        .authors-right strong{color:var(--text);font-weight:600;}
+        /* FOOTER */
+        footer{border-top:1px solid var(--border);padding:2.5rem;text-align:center;}
+        footer p{font-size:0.7rem;color:var(--faint);}
+        footer a{color:var(--accent);text-decoration:none;}
+        /* RESPONSIVE */
+        @media(max-width:900px){
+            .hero{grid-template-columns:1fr;}.flow-sim{height:350px;}.card-grid,.card-grid.c4{grid-template-columns:1fr 1fr;}.r-grid{grid-template-columns:1fr;}.conc-grid{grid-template-columns:1fr;}.perf-row{grid-template-columns:repeat(3,1fr);}.authors-bar{flex-direction:column;gap:1.5rem;text-align:center;}.authors-left{flex-direction:column;gap:1rem;align-items:center;}.authors-right{text-align:center;}
+            .cur-dot,.cur-ring{display:none!important;}body{cursor:auto;}a,button{cursor:pointer;}.side-nav{display:none;}
+        }
+        @media(max-width:600px){
+            .card-grid,.card-grid.c4{grid-template-columns:1fr;}.hero-stats{grid-template-columns:1fr 1fr;}.nav-links{display:none;}section{padding:5rem 1.5rem;}.hero{padding:6rem 1.5rem 4rem;}.perf-row{grid-template-columns:1fr 1fr;}
+        }
+    </style>
+</head>
+<body>
+
+<div id="loader">
+    <div class="loader-title">Algorithme de <em>Dinic</em></div>
+    <div class="loader-sub">Initialisation du réseau...</div>
+    <div class="loader-flow"><div class="loader-flow-fill"></div></div>
+    <div class="loader-pct" id="loaderPct">0%</div>
+</div>
+
+<div class="scroll-bar" id="scrollBar"></div>
+<div class="cur-dot" id="curDot"></div>
+<div class="cur-ring" id="curRing"></div>
+<canvas id="particles"></canvas>
+<div class="toast" id="toast"><span>✓</span><span id="toastMsg">Copié !</span></div>
+
+<div class="side-nav" id="sideNav">
+    <button class="side-dot active" data-label="Accueil" data-section="hero"></button>
+    <button class="side-dot" data-label="Algorithme" data-section="algo"></button>
+    <button class="side-dot" data-label="Structures" data-section="structures"></button>
+    <button class="side-dot" data-label="Implémentation" data-section="impl"></button>
+    <button class="side-dot" data-label="Résultats" data-section="resultats"></button>
+    <button class="side-dot" data-label="Code" data-section="code"></button>
+    <button class="side-dot" data-label="Conclusion" data-section="conclusion"></button>
+</div>
+
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<nav id="mainNav">
+    <div class="nav-in">
+        <div class="nav-logo">dinic<span>.flow</span></div>
+        <ul class="nav-links" id="navLinks">
+            <li><a href="#algo" data-section="algo">Algorithme</a></li>
+            <li><a href="#structures" data-section="structures">Structures</a></li>
+            <li><a href="#impl" data-section="impl">Pipeline</a></li>
+            <li><a href="#resultats" data-section="resultats">Résultats</a></li>
+            <li><a href="#code" data-section="code">Code</a></li>
+        </ul>
+    </div>
+</nav>
+
+<!-- ═══ HERO ═══ -->
+<header class="hero" data-spy="hero">
+    <div class="hero-left">
+        <div class="hero-tag"><span class="pulse"></span> Rapport IS3 — Analyse & Conception</div>
+        <h1 id="heroTitle">Algorithme de Dinic<br><em>Flot Maximum</em></h1>
+        <p class="hero-desc">Implémentation en C de l'algorithme de Dinic pour le calcul du flot maximum dans un réseau orienté, avec lecture DIMACS et représentation par listes de successeurs.</p>
+        <div class="hero-actions">
+            <a href="#resultats" class="mag-btn primary"><span>Voir les résultats →</span></a>
+            <a href="#algo" class="mag-btn ghost"><span>Comment ça marche ?</span></a>
+        </div>
+        <div class="hero-stats">
+            <div class="stat-cell"><div class="stat-val" data-target="2502">0</div><div class="stat-lbl">Sommets max</div></div>
+            <div class="stat-cell"><div class="stat-val" data-target="7450">0</div><div class="stat-lbl">Arcs max</div></div>
+            <div class="stat-cell"><div class="stat-val" data-target="42791871" data-short="true">0</div><div class="stat-lbl">Flot max (G_2500)</div></div>
+            <div class="stat-cell"><div class="stat-val" data-target="6" data-suffix="ms">0</div><div class="stat-lbl">Temps max</div></div>
+        </div>
+    </div>
+    <div class="hero-right">
+        <div class="flow-sim">
+            <canvas id="flowCanvas"></canvas>
+            <div class="flow-controls">
+                <div class="flow-info"><strong>R1</strong> — Cliquez <span class="em">▶ Étape</span> pour exécuter Dinic pas à pas</div>
+                <div class="flow-btns">
+                    <button class="flow-btn" onclick="stepDinic()">▶ Étape</button>
+                    <button class="flow-btn" onclick="resetDinic()">↺ Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div class="divider"></div>
+
+<!-- ═══ ALGO ═══ -->
+<section id="algo" data-spy="algo">
+    <div class="rv"><div class="s-num">01 — Algorithme</div><div class="s-title">Comprendre <em>Dinic</em></div><div class="s-desc">L'algorithme de Dinic trouve le flot maximum par recherche itérative de chemins augmentants dans un graphe résiduel, en utilisant un BFS pour garantir les plus courts chemins.</div></div>
+
+    <div class="pipe-track rv d1">
+        <div class="pipe-step"><div class="pipe-dot">📥</div><div class="pipe-lbl">Réseau</div><div class="pipe-sub">lecture DIMACS</div></div>
+        <div class="pipe-step"><div class="pipe-dot">🔄</div><div class="pipe-lbl">Graphe résiduel</div><div class="pipe-sub">arcs direct+inverse</div></div>
+        <div class="pipe-step"><div class="pipe-dot">🔍</div><div class="pipe-lbl">BFS</div><div class="pipe-sub">plus court chemin</div></div>
+        <div class="pipe-step"><div class="pipe-dot">💧</div><div class="pipe-lbl">Augmentation</div><div class="pipe-sub">min capacité</div></div>
+        <div class="pipe-step"><div class="pipe-dot">✅</div><div class="pipe-lbl">Convergence</div><div class="pipe-sub">flot maximum</div></div>
+    </div>
+
+    <div class="rv d2" style="margin-top:3rem;"><div class="s-num">Déroulement sur R1</div><div class="s-title" style="font-size:1.5rem;">Simulation <em>pas à pas</em></div><p style="color:var(--dim);font-size:0.85rem;margin-bottom:1.5rem;">Réseau R1 : 5 sommets, 7 arcs. Source = 1, Puits = 5.</p></div>
+
+    <div class="algo-timeline rv d2">
+        <div class="algo-step" data-step="1">
+            <h4>Itération 1</h4>
+            <p>BFS trouve le chemin <strong>1 → 4 → 5</strong>. Capacité minimale = 20.</p>
+            <span class="step-badge badge-path">chemin : 1→4→5</span>
+            <span class="step-badge badge-flow">flot cumulé = 20</span>
+        </div>
+        <div class="algo-step" data-step="2">
+            <h4>Itération 2</h4>
+            <p>BFS trouve le chemin <strong>1 → 2 → 3 → 5</strong>. Capacité minimale = 10.</p>
+            <span class="step-badge badge-path">chemin : 1→2→3→5</span>
+            <span class="step-badge badge-flow">flot cumulé = 30</span>
+        </div>
+        <div class="algo-step" data-step="3">
+            <h4>Itération 3</h4>
+            <p>BFS trouve le chemin <strong>1 → 2 → 4 → 5</strong>. Capacité minimale = 10.</p>
+            <span class="step-badge badge-path">chemin : 1→2→4→5</span>
+            <span class="step-badge badge-flow">flot cumulé = 40</span>
+        </div>
+        <div class="algo-step" data-step="✓">
+            <h4>Terminaison</h4>
+            <p>Plus aucun chemin augmentant trouvé par BFS. L'algorithme s'arrête.</p>
+            <span class="step-badge badge-stop">flot maximum = 40</span>
+        </div>
+    </div>
+
+    <div class="callout rv d3"><div class="callout-t">💡 Pourquoi le BFS ?</div><p>L'exploration en largeur garantit que le premier chemin trouvé est <strong>minimal en nombre d'arcs</strong>. Chaque sommet est visité une seule fois, donnant une complexité <strong>O(n+m)</strong> par phase. Cela assure la convergence rapide de l'algorithme en O(V²·E).</p></div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ STRUCTURES ═══ -->
+<section id="structures" data-spy="structures">
+    <div class="rv"><div class="s-num">02 — Structures de données</div><div class="s-title">Analyse <em>comparative</em></div><div class="s-desc">Trois structures ont été évaluées pour représenter le réseau. La liste de successeurs s'impose comme le meilleur choix.</div></div>
+
+    <div class="card-grid rv d1">
+        <div class="t-card" data-tilt>
+            <div class="tc-icon" style="background:rgba(251,113,133,0.1);">📊</div>
+            <h3>Matrice d'incidence</h3>
+            <p>Mémoire O(n×m). Accès successeurs O(m). Ajout/suppression O(n). Trop coûteuse pour les graphes creux.</p>
+        </div>
+        <div class="t-card" data-tilt>
+            <div class="tc-icon" style="background:rgba(251,191,36,0.1);">📋</div>
+            <h3>Tableau de sommets</h3>
+            <p>Mémoire O(n+m). Accès O(deg⁺). Ajout O(1), suppression O(deg⁺). Bonne alternative, mais moins flexible.</p>
+        </div>
+        <div class="t-card" data-tilt>
+            <div class="tc-icon" style="background:rgba(34,211,238,0.1);">🔗</div>
+            <h3>Listes de successeurs ✓</h3>
+            <p>Mémoire O(n+m). Accès O(deg⁺). Ajout O(1), suppression O(deg). Gagnante sur tous les critères.</p>
+        </div>
+    </div>
+
+    <div class="rv d2" style="margin-top:2rem;">
+        <table class="cmp-table">
+            <thead><tr><th>Critère</th><th>Matrice d'incidence</th><th>Tableau de sommets</th><th>Liste de successeurs</th></tr></thead>
+            <tbody>
+                <tr><td class="struct-name">Mémoire</td><td class="bad">O(n × m)</td><td class="meh">O(n + m)</td><td class="winner">O(n + m) ✓</td></tr>
+                <tr><td class="struct-name">Accès successeurs</td><td class="bad">O(m)</td><td class="winner">O(deg⁺)</td><td class="winner">O(deg⁺) ✓</td></tr>
+                <tr><td class="struct-name">Ajout d'arc</td><td class="bad">O(n)</td><td class="winner">O(1)</td><td class="winner">O(1) ✓</td></tr>
+                <tr><td class="struct-name">Suppression d'arc</td><td class="bad">O(n)</td><td class="meh">O(deg⁺)</td><td class="meh">O(deg⁺)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="callout rv d3"><div class="callout-t">🔧 Adaptation du graphe résiduel</div><p>Pour chaque arc (u,v) du réseau initial, on crée <strong>deux arcs dès le départ</strong> : un arc direct de capacité c(u,v)−f(u,v) et un arc inverse de capacité f(u,v). Ainsi, on ne fait jamais d'ajout/suppression dynamique — seulement des mises à jour de capacités.</p></div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ IMPL ═══ -->
+<section id="impl" data-spy="impl">
+    <div class="rv"><div class="s-num">03 — Implémentation</div><div class="s-title">Architecture du <em>programme</em></div><div class="s-desc">Le programme est décomposé en fonctions modulaires : lecture DIMACS, construction du graphe résiduel, BFS, augmentation, et écriture des résultats.</div></div>
+
+    <div class="card-grid c4 rv d1">
+        <div class="t-card" data-tilt><div class="tc-icon" style="background:var(--accent-g);">📥</div><h3>buildGraph</h3><p>Lecture du fichier DIMACS et construction du réseau initial avec listes de successeurs.</p></div>
+        <div class="t-card" data-tilt><div class="tc-icon" style="background:var(--flow-g);">🔄</div><h3>buildResidualGraph</h3><p>Construction du graphe résiduel avec arcs directs et inverses pour chaque arc.</p></div>
+        <div class="t-card" data-tilt><div class="tc-icon" style="background:rgba(52,211,153,0.1);">🔍</div><h3>shortestPath</h3><p>BFS trouvant le plus court chemin source→puits dans le graphe résiduel.</p></div>
+        <div class="t-card" data-tilt><div class="tc-icon" style="background:rgba(251,191,36,0.1);">⚡</div><h3>update + write</h3><p>Mise à jour des capacités, propagation des flots, écriture dans resultat.txt.</p></div>
+    </div>
+
+    <div class="rv d2" style="margin-top:2rem;">
+        <div class="graph-box">
+            <canvas id="structGraph"></canvas>
+            <div class="graph-legend"><strong>Interactif</strong> — Graphe R1 avec listes de successeurs · Survolez pour voir les connexions</div>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ RESULTATS ═══ -->
+<section id="resultats" data-spy="resultats">
+    <div class="rv"><div class="s-num">04 — Résultats</div><div class="s-title">Tests et <em>performances</em></div><div class="s-desc">L'algorithme a été validé sur 5 réseaux de tailles croissantes, de R1 (5 sommets) à G_2500 (2 502 sommets).</div></div>
+
+    <div class="perf-row rv d1">
+        <div class="perf-cell"><div class="p-name">R1</div><div class="p-val">40</div><div class="p-sub">5 sommets · 2ms</div></div>
+        <div class="perf-cell"><div class="p-name">R2</div><div class="p-val">15</div><div class="p-sub">6 sommets · 2ms</div></div>
+        <div class="perf-cell"><div class="p-name">G_100</div><div class="p-val" style="font-size:1rem;">9.86M</div><div class="p-sub">102 sommets · 4ms</div></div>
+        <div class="perf-cell"><div class="p-name">G_900</div><div class="p-val" style="font-size:1rem;">28.3M</div><div class="p-sub">902 sommets · 6ms</div></div>
+        <div class="perf-cell"><div class="p-name">G_2500</div><div class="p-val" style="font-size:1rem;">42.8M</div><div class="p-sub">2502 sommets · 6ms</div></div>
+    </div>
+
+    <div class="r-grid rv d2">
+        <div class="r-panel span">
+            <div class="r-head"><h3>Détail des résultats — tous les réseaux</h3><span class="r-badge">5 tests</span></div>
+            <table class="rt"><thead><tr><th>Réseau</th><th>Sommets</th><th>Arcs</th><th>Source→Puits</th><th>Flot max</th><th>Temps</th></tr></thead><tbody>
+                <tr><td class="test-name">R1</td><td>5</td><td>7</td><td>1 → 5</td><td class="val">40</td><td class="time">0.002s</td></tr>
+                <tr><td class="test-name">R2</td><td>6</td><td>8</td><td>1 → 6</td><td class="val">15</td><td class="time">0.002s</td></tr>
+                <tr><td class="test-name">G_100_300</td><td>102</td><td>290</td><td>1 → 102</td><td class="val">9 860 177</td><td class="time">0.004s</td></tr>
+                <tr><td class="test-name">G_900_2700</td><td>902</td><td>2 670</td><td>1 → 902</td><td class="val">28 258 807</td><td class="time">0.006s</td></tr>
+                <tr><td class="test-name">G_2500_7500</td><td>2 502</td><td>7 450</td><td>1 → 2 502</td><td class="val">42 791 871</td><td class="time">0.006s</td></tr>
+            </tbody></table>
+        </div>
+    </div>
+
+    <div class="callout rv d3"><div class="callout-t">🚀 Performance remarquable</div><p>Tous les flots maximaux sont calculés en <strong>1 à 6 ms</strong>, même pour des graphes de 2 500+ sommets et 7 450 arcs. Cela démontre l'efficacité de l'approche par listes de successeurs combinée à l'algorithme de Dinic.</p></div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ CODE ═══ -->
+<section id="code" data-spy="code">
+    <div class="rv"><div class="s-num">05 — Code source</div><div class="s-title">Implémentation <em>C</em></div><div class="s-desc">Le code complet : structures de données (dinic.h) et implémentation (dinic.c).</div></div>
+
+    <div class="rv d1">
+        <div class="tab-row" id="codeTabs">
+            <button class="tab-btn active" data-tab="header">dinic.h</button>
+            <button class="tab-btn" data-tab="source">dinic.c (extrait)</button>
+            <button class="tab-btn" data-tab="makefile">Makefile</button>
+        </div>
+
+        <div id="panel-header" class="tab-panel active">
+            <div class="code-wrap"><div class="code-top"><span class="code-fn"><span class="code-dt" style="background:var(--accent)"></span> dinic.h</span><div class="code-actions"><button class="copy-btn" onclick="doCopy('src-h')">copier</button></div></div><div class="code-scroll"><pre id="src-h"><span class="pp">#ifndef DINIC_H</span>
+<span class="pp">#define DINIC_H</span>
+<span class="pp">#include</span> <span class="str">&lt;stdbool.h&gt;</span>
+
+<span class="cm">// Maillon : arc sortant dans la liste chaînée</span>
+<span class="kw">typedef struct</span> <span class="tp">maillon</span> {
+    <span class="kw">int</span> SommetDest;        <span class="cm">// sommet destination</span>
+    <span class="kw">int</span> capa;              <span class="cm">// capacité résiduelle</span>
+    <span class="kw">int</span> flot;              <span class="cm">// flot courant</span>
+    <span class="kw">struct</span> <span class="tp">maillon</span> *suivant; <span class="cm">// arc suivant</span>
+} <span class="tp">Maillon</span>;
+
+<span class="cm">// Liste chaînée des successeurs d'un sommet</span>
+<span class="kw">typedef struct</span> <span class="tp">listeSucc</span> {
+    <span class="tp">Maillon</span> *tete;
+    <span class="kw">int</span>      taille;
+} <span class="tp">ListeSucc</span>;
+
+<span class="cm">// Chemin source → puits</span>
+<span class="kw">typedef struct</span> <span class="tp">chemin</span> {
+    <span class="kw">int</span> *sommets;
+    <span class="kw">int</span>  taille;
+} <span class="tp">Chemin</span>;
+
+<span class="cm">// Graphe orienté (réseau ou résiduel)</span>
+<span class="kw">typedef struct</span> <span class="tp">graphe</span> {
+    <span class="kw">int</span>       nbSommets;
+    <span class="tp">ListeSucc</span> *successeurs;
+    <span class="kw">int</span>       source;
+    <span class="kw">int</span>       puits;
+} <span class="tp">Graphe</span>;
+
+<span class="cm">// Prototypes</span>
+<span class="tp">Graphe</span>* <span class="fn">buildGraph</span>(<span class="kw">const char</span> *filename);
+<span class="tp">Graphe</span>* <span class="fn">buildResidualGraph</span>(<span class="kw">const</span> <span class="tp">Graphe</span> *g);
+<span class="tp">Chemin</span>* <span class="fn">shortestPath</span>(<span class="kw">const</span> <span class="tp">Graphe</span> *rg);
+<span class="kw">int</span>     <span class="fn">minCapacity</span>(<span class="kw">const</span> <span class="tp">Graphe</span> *rg, <span class="kw">const</span> <span class="tp">Chemin</span> *c);
+<span class="kw">void</span>    <span class="fn">updateResidualGraph</span>(<span class="tp">Graphe</span> *rg, <span class="kw">const</span> <span class="tp">Chemin</span> *c, <span class="kw">int</span> k);
+<span class="kw">void</span>    <span class="fn">updateNetworkFlow</span>(<span class="kw">const</span> <span class="tp">Graphe</span> *rg, <span class="tp">Graphe</span> *g);
+<span class="kw">void</span>    <span class="fn">ecrireResultat</span>(<span class="kw">const</span> <span class="tp">Graphe</span> *res, <span class="kw">int</span> flot);
+<span class="kw">void</span>    <span class="fn">freeGraph</span>(<span class="tp">Graphe</span> *g);
+<span class="kw">void</span>    <span class="fn">freePath</span>(<span class="tp">Chemin</span> *c);
+
+<span class="pp">#endif</span></pre></div></div>
+        </div>
+
+        <div id="panel-source" class="tab-panel">
+            <div class="code-wrap"><div class="code-top"><span class="code-fn"><span class="code-dt" style="background:var(--emerald)"></span> dinic.c — main + pagerank</span><div class="code-actions"><button class="copy-btn" onclick="doCopy('src-c')">copier</button></div></div><div class="code-scroll"><pre id="src-c"><span class="cm">// Algorithme principal de Dinic</span>
+<span class="kw">int</span> <span class="fn">main</span>(<span class="kw">int</span> argc, <span class="kw">char</span> **argv) {
+    <span class="kw">if</span> (argc != <span class="num">2</span>) {
+        fprintf(stderr, <span class="str">"Usage: %s &lt;DIMACS&gt;\n"</span>, argv[<span class="num">0</span>]);
+        <span class="kw">return</span> EXIT_FAILURE;
+    }
+    <span class="tp">Graphe</span> *network = <span class="fn">buildGraph</span>(argv[<span class="num">1</span>]);
+    <span class="tp">Graphe</span> *resGraph = <span class="fn">buildResidualGraph</span>(network);
+
+    <span class="kw">int</span> maxFlow = <span class="num">0</span>;
+    <span class="tp">Chemin</span> *path;
+
+    <span class="cm">// Boucle principale : tant qu'un chemin augmentant existe</span>
+    <span class="kw">while</span> ((path = <span class="fn">shortestPath</span>(resGraph))) {
+        <span class="kw">int</span> k = <span class="fn">minCapacity</span>(resGraph, path);
+        <span class="fn">updateResidualGraph</span>(resGraph, path, k);
+        <span class="fn">updateNetworkFlow</span>(resGraph, network);
+        maxFlow += k;
+        <span class="fn">freePath</span>(path);
+    }
+
+    <span class="fn">ecrireResultat</span>(network, maxFlow);
+    <span class="fn">freeGraph</span>(resGraph);
+    <span class="fn">freeGraph</span>(network);
+    <span class="kw">return</span> EXIT_SUCCESS;
+}</pre></div></div>
+        </div>
+
+        <div id="panel-makefile" class="tab-panel">
+            <div class="code-wrap"><div class="code-top"><span class="code-fn"><span class="code-dt" style="background:var(--amber)"></span> Makefile</span><div class="code-actions"><button class="copy-btn" onclick="doCopy('src-mk')">copier</button></div></div><div class="code-scroll"><pre id="src-mk">CC = gcc
+CFLAGS = -std=c11 -Wall -Wextra -O2
+TARGET = dinic
+SRCS = dinic.c
+HDRS = dinic.h
+
+all: $(TARGET)
+
+run: $(TARGET)
+	./$(TARGET) $(FILE)
+
+$(TARGET): $(SRCS) $(HDRS)
+	$(CC) $(CFLAGS) -o $@ $(SRCS)
+
+clean:
+	rm -f $(TARGET) *.o resultat.txt</pre></div></div>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ CONCLUSION ═══ -->
+<section id="conclusion" data-spy="conclusion">
+    <div class="rv"><div class="s-num">06 — Conclusion</div><div class="s-title">Bilan & <em>Perspectives</em></div></div>
+    <div class="conc-grid rv d1">
+        <div class="conc-card"><div class="cc-icon">✅</div><h3>Validité fonctionnelle</h3><p>Flots maximaux corrects sur tous les réseaux de test, de R1 à G_2500_7500.</p></div>
+        <div class="conc-card"><div class="cc-icon">⚡</div><h3>Performance optimale</h3><p>Tous les calculs en 1-6ms grâce aux listes de successeurs et au BFS optimisé.</p></div>
+        <div class="conc-card"><div class="cc-icon">🔗</div><h3>Structure adaptée</h3><p>Les listes de successeurs offrent le meilleur compromis mémoire/temps pour Dinic.</p></div>
+        <div class="conc-card"><div class="cc-icon">🚀</div><h3>Perspectives</h3><p>Pointeurs reverse pour O(1) sur les arcs inverses, tests unitaires automatisés, parser robuste.</p></div>
+    </div>
+
+    <div class="authors-bar rv d2">
+        <div class="authors-left">
+            <div class="a-person"><div class="a-av">AN</div><div><div class="a-name">Amine Nakrou</div><div class="a-role">IS3 — Polytech Lille</div></div></div>
+            <div class="a-person"><div class="a-av">YB</div><div><div class="a-name">Yassine Bourhaba</div><div class="a-role">IS3 — Polytech Lille</div></div></div>
+        </div>
+        <div class="authors-right">Tutrice : <strong>Marie-Eléonore Kessaci</strong><br>26 mai 2025</div>
+    </div>
+</section>
+
+<footer><p>Algorithme de Dinic — Rapport IS3 · Polytech Lille · <a href="mailto:Amine.Nakrou@polytech-lille.net">Contact</a></p></footer>
+
+<script>
+// ═══ LOADER ═══
+(function(){let p=0;const pct=document.getElementById('loaderPct');const iv=setInterval(()=>{p+=Math.random()*18;if(p>=100){p=100;clearInterval(iv);setTimeout(()=>document.getElementById('loader').classList.add('done'),400);}pct.textContent=Math.floor(p)+'%';},70);})();
+
+// ═══ CURSOR ═══
+const dot=document.getElementById('curDot'),ring=document.getElementById('curRing');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;dot.style.left=mx-4+'px';dot.style.top=my-4+'px';});
+document.addEventListener('mousedown',()=>dot.classList.add('click'));
+document.addEventListener('mouseup',()=>dot.classList.remove('click'));
+function ringLoop(){rx+=(mx-rx)*0.12;ry+=(my-ry)*0.12;ring.style.left=rx-18+'px';ring.style.top=ry-18+'px';requestAnimationFrame(ringLoop);}ringLoop();
+document.querySelectorAll('a,button,.t-card,.pipe-step,.tab-btn,.stat-cell,.perf-cell,.conc-card,.callout,.algo-step,.side-dot,.back-top,.flow-btn,.copy-btn,.mag-btn').forEach(el=>{el.addEventListener('mouseenter',()=>ring.classList.add('hover'));el.addEventListener('mouseleave',()=>ring.classList.remove('hover'));});
+
+// ═══ SCROLL ═══
+const sbar=document.getElementById('scrollBar'),bTop=document.getElementById('backTop'),mnav=document.getElementById('mainNav');
+const sections=[...document.querySelectorAll('[data-spy]')];
+const navLinks=document.querySelectorAll('.nav-links a[data-section]');
+const sideDots=document.querySelectorAll('.side-dot[data-section]');
+window.addEventListener('scroll',()=>{
+    const h=document.documentElement.scrollHeight-window.innerHeight;
+    sbar.style.width=(window.scrollY/h*100)+'%';
+    if(window.scrollY>300)bTop.classList.add('vis');else bTop.classList.remove('vis');
+    if(window.scrollY>60)mnav.classList.add('scrolled');else mnav.classList.remove('scrolled');
+    let cur='hero';for(const s of sections){if(s.getBoundingClientRect().top<=200)cur=s.dataset.spy;}
+    navLinks.forEach(a=>a.classList.toggle('active',a.dataset.section===cur));
+    sideDots.forEach(d=>d.classList.toggle('active',d.dataset.section===cur));
+},{passive:true});
+document.querySelectorAll('.side-dot[data-section]').forEach(d=>d.addEventListener('click',()=>{const t=document.querySelector('[data-spy="'+d.dataset.section+'"]');if(t)t.scrollIntoView({behavior:'smooth'});}));
+
+// ═══ HERO TEXT ═══
+(function(){const h1=document.getElementById('heroTitle');if(!h1)return;let idx=0;h1.innerHTML=h1.innerHTML.replace(/>([^<]+)</g,(m,text)=>{const chars=text.split('').map(ch=>{if(ch===' '||ch==='\n')return ch;const d=0.5+idx*0.02;idx++;return `<span class="char" style="animation-delay:${d}s">${ch}</span>`;}).join('');return'>'+chars+'<';});})();
+
+// ═══ COUNTERS ═══
+function animC(el){const t=parseFloat(el.dataset.target),sfx=el.dataset.suffix||'',short=el.dataset.short==='true',dur=2000,st=performance.now();function tick(n){const p=Math.min((n-st)/dur,1),e=1-Math.pow(1-p,4),v=t*e;if(short)el.textContent=(v/1e6).toFixed(1)+'M'+sfx;else el.textContent=Math.floor(v).toLocaleString('fr-FR')+sfx;if(p<1)requestAnimationFrame(tick);}requestAnimationFrame(tick);}
+const cObs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.querySelectorAll('.stat-val').forEach(animC);cObs.unobserve(e.target);}});},{threshold:0.5});
+document.querySelectorAll('.hero-stats').forEach(el=>cObs.observe(el));
+
+// ═══ TILT CARDS ═══
+document.querySelectorAll('[data-tilt]').forEach(c=>{c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-0.5,y=(e.clientY-r.top)/r.height-0.5;c.style.transform=`perspective(800px) rotateY(${x*12}deg) rotateX(${-y*12}deg) scale(1.02)`;});c.addEventListener('mouseleave',()=>{c.style.transform='';});});
+
+// ═══ PARTICLES ═══
+(function(){const c=document.getElementById('particles'),ctx=c.getContext('2d');let W,H;const ps=[];
+function resize(){W=window.innerWidth;H=window.innerHeight;c.width=W;c.height=H;}resize();window.addEventListener('resize',resize);
+for(let i=0;i<45;i++)ps.push({x:Math.random()*W,y:Math.random()*H,r:0.5+Math.random()*1.2,vx:(Math.random()-0.5)*0.25,vy:(Math.random()-0.5)*0.25,a:0.06+Math.random()*0.12});
+function draw(){ctx.clearRect(0,0,W,H);for(const p of ps){p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;const dx=p.x-mx,dy=p.y-my,d=Math.sqrt(dx*dx+dy*dy);if(d<140&&d>0){p.x+=dx/d*1.2;p.y+=dy/d*1.2;}ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`rgba(34,211,238,${p.a})`;ctx.fill();}
+for(let i=0;i<ps.length;i++)for(let j=i+1;j<ps.length;j++){const dx=ps[i].x-ps[j].x,dy=ps[i].y-ps[j].y,d=Math.sqrt(dx*dx+dy*dy);if(d<110){ctx.beginPath();ctx.moveTo(ps[i].x,ps[i].y);ctx.lineTo(ps[j].x,ps[j].y);ctx.strokeStyle=`rgba(34,211,238,${0.04*(1-d/110)})`;ctx.lineWidth=0.5;ctx.stroke();}}
+requestAnimationFrame(draw);}draw();})();
+
+// ═══ FLOW SIMULATOR (R1 DINIC) ═══
+(function(){
+const canvas=document.getElementById('flowCanvas');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H;
+const dpr=window.devicePixelRatio||1;
+function resize(){const r=canvas.parentElement.getBoundingClientRect();W=r.width;H=r.height-50;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=(H)+'px';ctx.setTransform(dpr,0,0,dpr,0,0);}
+resize();window.addEventListener('resize',resize);
+
+// R1 network: 5 nodes, 7 edges
+const nodePos=[null,{x:0.12,y:0.5},{x:0.38,y:0.22},{x:0.65,y:0.22},{x:0.38,y:0.78},{x:0.88,y:0.5}];
+const edges=[{u:1,v:2,cap:20,flow:0},{u:1,v:4,cap:20,flow:0},{u:2,v:3,cap:10,flow:0},{u:2,v:4,cap:10,flow:0},{u:3,v:5,cap:30,flow:0},{u:4,v:5,cap:20,flow:0},{u:4,v:3,cap:10,flow:0}];
+let iteration=0;let totalFlow=0;let currentPath=[];let animPhase=0;
+const iterations=[{path:[1,4,5],flow:20},{path:[1,2,3,5],flow:10},{path:[1,2,4,5],flow:10}];
+const flowParticles=[];
+
+window.stepDinic=function(){
+    if(iteration>=iterations.length)return;
+    const it=iterations[iteration];
+    currentPath=it.path;
+    // Update flows on edges
+    for(let i=0;i<it.path.length-1;i++){
+        const u=it.path[i],v=it.path[i+1];
+        const e=edges.find(e=>e.u===u&&e.v===v);
+        if(e)e.flow+=it.flow;
+    }
+    totalFlow+=it.flow;
+    iteration++;
+    // Spawn flow particles
+    for(let i=0;i<it.path.length-1;i++){
+        const u=nodePos[it.path[i]],v=nodePos[it.path[i+1]];
+        for(let j=0;j<5;j++){
+            flowParticles.push({x:u.x*W,y:u.y*H,tx:v.x*W,ty:v.y*H,p:0,speed:0.01+Math.random()*0.01,delay:i*15+j*3});
+        }
+    }
+    animPhase=120;
+};
+
+window.resetDinic=function(){
+    iteration=0;totalFlow=0;currentPath=[];animPhase=0;flowParticles.length=0;
+    edges.forEach(e=>e.flow=0);
+};
+
+let frame=0;
+function draw(){
+    ctx.clearRect(0,0,W,H);frame++;
+    // Draw edges
+    for(const e of edges){
+        const a=nodePos[e.u],b=nodePos[e.v];
+        const ax=a.x*W,ay=a.y*H,bx=b.x*W,by=b.y*H;
+        const isPath=currentPath.length>0&&animPhase>0;
+        let onPath=false;
+        if(isPath)for(let i=0;i<currentPath.length-1;i++)if(currentPath[i]===e.u&&currentPath[i+1]===e.v)onPath=true;
+        // Edge line
+        ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);
+        ctx.strokeStyle=onPath?'rgba(34,211,238,0.6)':'rgba(60,70,100,0.4)';
+        ctx.lineWidth=onPath?2.5:1.5;ctx.stroke();
+        // Arrow
+        const ang=Math.atan2(by-ay,bx-ax);const d=20;
+        const mx2=(ax+bx)/2,my2=(ay+by)/2;
+        ctx.beginPath();ctx.moveTo(mx2,my2);ctx.lineTo(mx2-d*Math.cos(ang-0.3),my2-d*Math.sin(ang-0.3));ctx.moveTo(mx2,my2);ctx.lineTo(mx2-d*Math.cos(ang+0.3),my2-d*Math.sin(ang+0.3));
+        ctx.strokeStyle=onPath?'rgba(34,211,238,0.5)':'rgba(60,70,100,0.3)';ctx.lineWidth=1.5;ctx.stroke();
+        // Label
+        const lx=(ax+bx)/2+(by-ay)*0.08,ly=(ay+by)/2-(bx-ax)*0.08;
+        ctx.font='500 11px "JetBrains Mono"';ctx.textAlign='center';ctx.textBaseline='middle';
+        if(e.flow>0){ctx.fillStyle='rgba(52,211,153,0.9)';ctx.fillText(e.flow+'/'+e.cap,lx,ly);}
+        else{ctx.fillStyle='rgba(120,130,160,0.6)';ctx.fillText('0/'+e.cap,lx,ly);}
+    }
+    // Draw flow particles
+    for(let i=flowParticles.length-1;i>=0;i--){
+        const fp=flowParticles[i];
+        if(fp.delay>0){fp.delay--;continue;}
+        fp.p+=fp.speed;
+        if(fp.p>=1){flowParticles.splice(i,1);continue;}
+        const px=fp.x+(fp.tx-fp.x)*fp.p;
+        const py=fp.y+(fp.ty-fp.y)*fp.p;
+        ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);
+        ctx.fillStyle=`rgba(34,211,238,${0.8*(1-fp.p)})`;ctx.fill();
+        ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);
+        ctx.fillStyle=`rgba(34,211,238,${0.2*(1-fp.p)})`;ctx.fill();
+    }
+    // Draw nodes
+    for(let i=1;i<=5;i++){
+        const n=nodePos[i];const nx=n.x*W,ny=n.y*H;
+        const isOnPath=currentPath.includes(i)&&animPhase>0;
+        const isSource=i===1,isSink=i===5;
+        // Glow
+        if(isSource||isSink||isOnPath){
+            ctx.beginPath();ctx.arc(nx,ny,28,0,Math.PI*2);
+            const g=ctx.createRadialGradient(nx,ny,14,nx,ny,28);
+            g.addColorStop(0,isSource?'rgba(59,130,246,0.2)':isSink?'rgba(52,211,153,0.2)':'rgba(34,211,238,0.15)');
+            g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fill();
+        }
+        ctx.beginPath();ctx.arc(nx,ny,18,0,Math.PI*2);
+        ctx.fillStyle=isSource?'rgba(59,130,246,0.8)':isSink?'rgba(52,211,153,0.8)':isOnPath?'rgba(34,211,238,0.7)':'rgba(30,40,70,0.8)';
+        ctx.fill();ctx.strokeStyle=isOnPath?'rgba(34,211,238,0.5)':'rgba(60,70,100,0.4)';ctx.lineWidth=1.5;ctx.stroke();
+        ctx.font='700 13px Satoshi';ctx.fillStyle='#e0e4ef';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(i,nx,ny);
+        // Labels
+        if(isSource){ctx.font='500 10px "JetBrains Mono"';ctx.fillStyle='rgba(59,130,246,0.7)';ctx.fillText('source',nx,ny+30);}
+        if(isSink){ctx.font='500 10px "JetBrains Mono"';ctx.fillStyle='rgba(52,211,153,0.7)';ctx.fillText('puits',nx,ny+30);}
+    }
+    // Flow total
+    ctx.font='600 14px "JetBrains Mono"';ctx.textAlign='right';ctx.fillStyle='rgba(34,211,238,0.8)';
+    ctx.fillText('Flot = '+totalFlow,W-20,30);
+    if(iteration>=3&&animPhase<=0){ctx.font='500 11px Satoshi';ctx.fillStyle='rgba(52,211,153,0.8)';ctx.fillText('✓ Flot maximum atteint !',W-20,50);}
+    if(animPhase>0)animPhase--;
+    requestAnimationFrame(draw);
+}
+draw();
+})();
+
+// ═══ STRUCTURE GRAPH (R1 adjacency visualization) ═══
+(function(){
+const canvas=document.getElementById('structGraph');if(!canvas)return;const ctx=canvas.getContext('2d');let W,H;
+function resize(){const r=canvas.parentElement.getBoundingClientRect();W=r.width;H=r.height;const dpr=window.devicePixelRatio||1;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0);}
+const nodes=[],edges=[];let hovered=-1,gmx=0,gmy=0;
+const labels=['1 (src)','2','3','4','5 (puits)'];
+const adjList=[[1,3],[2,3],[4],[2,4],[/*sink*/]]; // 0-indexed successors
+function init(){resize();nodes.length=0;edges.length=0;
+const cx=W/2,cy=H/2;
+for(let i=0;i<5;i++){const a=(i/5)*Math.PI*2-Math.PI/2;const d=130;nodes.push({x:cx+Math.cos(a)*d,y:cy+Math.sin(a)*d,vx:0,vy:0,r:22,label:labels[i]});}
+for(let i=0;i<adjList.length;i++)for(const j of adjList[i])edges.push([i,j]);}
+canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();gmx=e.clientX-r.left;gmy=e.clientY-r.top;hovered=-1;for(let i=0;i<nodes.length;i++){const dx=nodes[i].x-gmx,dy=nodes[i].y-gmy;if(Math.sqrt(dx*dx+dy*dy)<nodes[i].r+6){hovered=i;break;}}});
+function draw(){ctx.clearRect(0,0,W,H);
+for(const[a,b]of edges){const na=nodes[a],nb=nodes[b];const isH=a===hovered||b===hovered;
+ctx.beginPath();ctx.moveTo(na.x,na.y);ctx.lineTo(nb.x,nb.y);ctx.strokeStyle=isH?'rgba(34,211,238,0.4)':'rgba(60,70,100,0.2)';ctx.lineWidth=isH?2:1;ctx.stroke();
+const ang=Math.atan2(nb.y-na.y,nb.x-na.x);const mx2=(na.x+nb.x)/2,my2=(na.y+nb.y)/2;
+ctx.beginPath();ctx.moveTo(mx2+8*Math.cos(ang),my2+8*Math.sin(ang));ctx.lineTo(mx2-10*Math.cos(ang-0.4),my2-10*Math.sin(ang-0.4));ctx.lineTo(mx2-10*Math.cos(ang+0.4),my2-10*Math.sin(ang+0.4));ctx.closePath();ctx.fillStyle=isH?'rgba(34,211,238,0.3)':'rgba(60,70,100,0.15)';ctx.fill();}
+for(let i=0;i<nodes.length;i++){const n=nodes[i];const isH=i===hovered;const isSrc=i===0,isSnk=i===4;
+if(isH||isSrc||isSnk){ctx.beginPath();ctx.arc(n.x,n.y,n.r+8,0,Math.PI*2);const g=ctx.createRadialGradient(n.x,n.y,n.r,n.x,n.y,n.r+8);g.addColorStop(0,isSrc?'rgba(59,130,246,0.15)':isSnk?'rgba(52,211,153,0.15)':'rgba(34,211,238,0.12)');g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fill();}
+ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,Math.PI*2);ctx.fillStyle=isSrc?'rgba(59,130,246,0.7)':isSnk?'rgba(52,211,153,0.7)':(isH?'rgba(34,211,238,0.5)':'rgba(20,30,55,0.8)');ctx.fill();ctx.strokeStyle=isH?'rgba(34,211,238,0.5)':'rgba(60,70,100,0.3)';ctx.lineWidth=1.5;ctx.stroke();
+ctx.font='600 12px Satoshi';ctx.fillStyle='#e0e4ef';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(n.label,n.x,n.y);
+if(isH){ctx.font='400 10px "JetBrains Mono"';ctx.fillStyle='rgba(34,211,238,0.7)';const succs=adjList[i].map(j=>(j+1)).join(', ');ctx.fillText('succ: ['+(succs||'∅')+']',n.x,n.y-n.r-12);}}
+requestAnimationFrame(draw);}
+init();draw();let rt;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(init,200);});
+})();
+
+// ═══ TABS ═══
+function setupTabs(id){const c=document.getElementById(id);if(!c)return;c.querySelectorAll('.tab-btn').forEach(btn=>{btn.addEventListener('click',()=>{c.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const sec=c.closest('section');sec.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));const t=sec.querySelector('#panel-'+btn.dataset.tab);if(t)t.classList.add('active');});});}
+setupTabs('codeTabs');
+
+// ═══ TOAST + COPY ═══
+function showToast(msg){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
+function doCopy(id){const el=document.getElementById(id);if(!el)return;navigator.clipboard.writeText(el.textContent).then(()=>showToast('Code copié !'));}
+
+// ═══ REVEAL ═══
+const rvObs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('vis');});},{threshold:0.06,rootMargin:'0px 0px -30px 0px'});
+document.querySelectorAll('.rv').forEach(el=>rvObs.observe(el));
+
+// ═══ MAGNETIC BTNS ═══
+document.querySelectorAll('.mag-btn').forEach(btn=>{btn.addEventListener('mousemove',e=>{const r=btn.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;btn.style.transform=`translate(${x*0.2}px,${y*0.2}px)`;});btn.addEventListener('mouseleave',()=>{btn.style.transform='';});});
+
+// ═══ CLICK PARTICLES ═══
+document.addEventListener('click',e=>{for(let i=0;i<8;i++){const p=document.createElement('div');p.style.cssText=`position:fixed;left:${e.clientX}px;top:${e.clientY}px;width:${3+Math.random()*3}px;height:${3+Math.random()*3}px;border-radius:50%;background:${['var(--accent)','var(--flow)','var(--emerald)'][i%3]};pointer-events:none;z-index:99997;`;document.body.appendChild(p);const a=(i/8)*Math.PI*2,d=25+Math.random()*40,tx=Math.cos(a)*d,ty=Math.sin(a)*d;p.animate([{transform:'translate(-50%,-50%) scale(1)',opacity:1},{transform:`translate(calc(-50% + ${tx}px),calc(-50% + ${ty}px)) scale(0)`,opacity:0}],{duration:450+Math.random()*250,easing:'cubic-bezier(0.16,1,0.3,1)'}).onfinish=()=>p.remove();}});
+
+// ═══ TABLE ROW STAGGER ═══
+const rowObs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.querySelectorAll('tbody tr').forEach((r,i)=>{r.style.opacity='0';r.style.transform='translateX(-8px)';setTimeout(()=>{r.style.transition='all 0.4s var(--transition)';r.style.opacity='1';r.style.transform='none';},i*60);});rowObs.unobserve(e.target);}});},{threshold:0.2});
+document.querySelectorAll('.r-panel,.cmp-table').forEach(p=>rowObs.observe(p));
+
+// ═══ KEYBOARD ═══
+document.addEventListener('keydown',e=>{if(e.key==='t'||e.key==='T')window.scrollTo({top:0,behavior:'smooth'});});
+</script>
+</body>
+</html>
